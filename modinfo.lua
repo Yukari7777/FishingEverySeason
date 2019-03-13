@@ -20,6 +20,11 @@ priority = -2
 -- Tweak mod like this is recommended to have enough lower priority  
 -- so that the mod to be guaranteed to be loaded AFTER any other mods to be loaded.
 
+folder_name = folder_name or ""
+if not folder_name:find("workshop-") then
+    name = name.." - Test"
+end
+
 configuration_options =
 {
 	{
