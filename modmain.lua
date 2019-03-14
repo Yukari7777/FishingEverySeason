@@ -1,5 +1,3 @@
-GLOBAL.UpvalueHacker = GLOBAL.require "tools/UpvalueHacker" -- debug
-
 local oasisSeason = GetModConfigData("OasisSeason")
 local FreezeLake = GetModConfigData("FreezeLake")
 local FreezeLakeM = GetModConfigData("FreezeLakeMos")
@@ -47,13 +45,13 @@ local function FillLake(inst, skipanim)
 	inst.isfilled = true
 end
 
-local function ShouldFillUp(season)
-	return oasisSeason == 2 and (season ~= "winter") or oasisSeason == 3
+local function GetOptionFlagBySeason(var, season)
+	return var == 2 and (season ~= "winter") or var == 3
 end
 
 local function OnSeasonChanged(inst, data, skipanim)
 	local _season = type(data) == "table" and data.season or data
-	local active = ShouldFillUp(_season)
+	local active = GetOptionFlagBySeason(oasisSeason, _season)
 
     if active and not inst.isfilled then
 		local SpawnOasisBugs = UpvalueHacker.GetUpvalue(Prefabs.oasislake.fn, "OnInit", "OnSandstormChanged", "SpawnOasisBugs")
@@ -131,56 +129,55 @@ AddPrefabPostInit("pond", ChangeLake)
 AddPrefabPostInit("pond_mos", ChangeLakeMos)
 
 AddPrefabPostInit("forest", function(inst)
-	if SandStorm ~= 1 then
-		-- Since it's not able to get values' reference, I had no option except for replacing every case where _sandstormactive is used to a new class variable's.
+	if not GLOBAL.TheWorld.ismastersim or SandStorm == 1 then
+		return
+	end
 
-		local sandstorms = inst.components.sandstorms
-		sandstorms._active = false -- This is now act like _sandstormactive.
+	-- Since it's not able to get values' reference, I had no option except for replacing every case where _sandstormactive is used to a new class variable's.
+	local Sandstorms = inst.components.sandstorms
+	Sandstorms._active = false -- This is now act like _sandstormactive.
 
-		local _sandstormactive = sandstorms._active
+	local _sandstormactive = Sandstorms._active
 
-		function sandstorms:IsInSandstorm(ent)
-			return _sandstormactive
-				and ent.components.areaaware ~= nil
-				and ent.components.areaaware:CurrentlyInTag("sandstorm")
-		end
-
-		function sandstorms:GetSandstormLevel(ent)
-			if _sandstormactive and
-				ent.components.areaaware ~= nil and
-				ent.components.areaaware:CurrentlyInTag("sandstorm") then
-				local oasislevel = sandstorms:CalcOasisLevel(ent)
-				return oasislevel < 1
-					and math.clamp(sandstorms:CalcSandstormLevel(ent) - oasislevel, 0, 1)
-					or 0
-			end
-			--TODO: entities without areaaware need to know if they're inside the sandstorm
-			return 0
-		end
-
-		function sandstorms:IsSandstormActive()
-			return _sandstormactive
-		end
-
-
-		local ToggleSandStorm, ShouldActivateSandstorm
-		for k, v in pairs(inst.event_listening.seasontick[inst]) do
+	for _, events in pairs({inst.event_listening.seasontick[inst], inst.event_listening.weathertick[inst]}) do
+		for k, v in pairs(events) do
 			local reference = UpvalueHacker.GetUpvalue(v, "ToggleSandstorm")
 
 			if reference ~= nil then 
-				ShouldActivateSandstorm = UpvalueHacker.GetUpvalue(reference, "ShouldActivateSandstorm")
-				ToggleSandStorm = reference
+				local ShouldActivateSandstorm = UpvalueHacker.GetUpvalue(reference, "ShouldActivateSandstorm")
+				local ToggleSandStorm = function()
+					if _sandstormactive ~= (SandStorm ~= 0 and ShouldActivateSandstorm() and (SandStorm == 2 and not inst.components.worldstate.data.iswinter) or SandStorm == 3) then
+						_sandstormactive = not _sandstormactive
+						inst:PushEvent("ms_sandstormchanged", _sandstormactive)
+					end
+				end
+
+				UpvalueHacker.SetUpvalue(v, ToggleSandStorm, "ToggleSandstorm")
 				break
 			end
 		end
+	end
 
-		if ToggleSandStorm ~= nil then
-			ToggleSandStorm = function()
-				if _sandstormactive and (SandStorm ~= 0 and ShouldActivateSandstorm() and (SandStorm == 2 and not inst.components.worldstate.data.iswinter) or SandStorm == 3) then
-					_sandstormactive = not _sandstormactive
-					inst:PushEvent("ms_sandstormchanged", _sandstormactive)
-				end
-			end
+	function Sandstorms:IsInSandstorm(ent)
+		return _sandstormactive
+			and ent.components.areaaware ~= nil
+			and ent.components.areaaware:CurrentlyInTag("sandstorm")
+	end
+
+	function Sandstorms:GetSandstormLevel(ent)
+		if _sandstormactive and
+			ent.components.areaaware ~= nil and
+			ent.components.areaaware:CurrentlyInTag("sandstorm") then
+			local oasislevel = Sandstorms:CalcOasisLevel(ent)
+			return oasislevel < 1
+				and math.clamp(Sandstorms:CalcSandstormLevel(ent) - oasislevel, 0, 1)
+				or 0
 		end
+		--TODO: entities without areaaware need to know if they're inside the sandstorm
+		return 0
+	end
+
+	function Sandstorms:IsSandstormActive()
+		return _sandstormactive
 	end
 end)

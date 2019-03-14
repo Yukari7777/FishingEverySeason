@@ -1,6 +1,6 @@
 name = "Fishing Every Season"
 author = "Yakumo Yukari"
-version = "1.1.1"
+version = "1.2"
 description = "Allows you to configure in which seasons you are able to fish in an oasis."
 forumthread = ""
 api_version = 6
