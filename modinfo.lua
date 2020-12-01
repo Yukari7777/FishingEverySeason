@@ -1,6 +1,6 @@
 name = "Fishing Every Season"
 author = "Yakumo Yukari"
-version = "1.2"
+version = "1.2.3"
 description = "Allows you to configure in which seasons you are able to fish in an oasis."
 forumthread = ""
 api_version = 6
@@ -13,7 +13,7 @@ icon_atlas = "modicon.xml"
 icon = "modicon.tex"
 
 server_filter_tags = {
-	"tweak", "oasis"
+	"tweak", "oasis", "fishing"
 }
 
 priority = -2
@@ -25,32 +25,40 @@ if not folder_name:find("workshop-") then
     name = name.." - Test"
 end
 
+local period_option = {}
+for i = 1, 73 do
+	period_option[i] = { description = "Every "..(i - 3).." days("..(i - 3).."일마다)", data = i }
+end
+period_option[1].description = "No Spawn(스폰안함)"
+period_option[2].description = "Default(기본값)"
+period_option[3].description = "Every Season(매 계절마다)"
+
 configuration_options =
 {
 	{
 		name = "FreezeLake",
 		label = "Freeze lake",
-		hover = "Set can (frog)lakes be frozen in winter.\n겨울에 (개구리가 나오는)연못이 얼어붙는지 설정합니다.",
+		hover = "Can (frog)lakes froze in winter?\n겨울에 (개구리가 나오는)연못이 얼어붙는지 설정합니다.",
 		options = {
-			{ description = "Yes(얼음)", data = true},
-			{ description = "No(안얼음)", data = false},
+			{ description = "Yes(얼음)", data = true },
+			{ description = "No(안얼음)", data = false },
 		},
 		default = false,
 	},
 	{
 		name = "FreezeLakeMos",
 		label = "Freeze mosquito lake",
-		hover = "Set can mosquito lakes be frozen in winter.\n겨울에 모기연못이 얼어붙는지 설정합니다.",
+		hover = "Can mosquito lakes froze in winter?\n겨울에 모기연못이 얼어붙는지 설정합니다.",
 		options = {
-			{ description = "Yes(얼음)", data = true},
-			{ description = "No(안얼음)", data = false},
+			{ description = "Yes(얼음)", data = true },
+			{ description = "No(안얼음)", data = false },
 		},
 		default = false,
 	},
 	{
 		name = "OasisSeason",
 		label = "Oasis Season",
-		hover = "Set which season is able to fish in oasis.\n오아시스에서 낚시를 할 수 있는 계절을 설정합니다.",
+		hover = "Set which season is able to fish in oasis.\n언제 오아시스에서 낚시할 수 있게되는지 설정합니다.",
 		options = {
 			{ description = "Dried(항상마름)", data = 0 },
 			{ description = "Default(기본값)", data = 1 },
@@ -62,13 +70,32 @@ configuration_options =
 	{
 		name = "SandStorm",
 		label = "Sandstorm",
-		hover = "Set when to activate sandstorm.",
+		hover = "When is sandstorm activates?\n언제 모래폭풍이 활성화 될지 설정합니다.",
 		options = {
-			{ description = "No Sandstorm", data = 0 },
+			{ description = "Disable(비활성화)", data = 0 },
 			{ description = "Default(기본값)", data = 1 },
 			{ description = "No Winter(겨울x)", data = 2 },
 			{ description = "Always(항상)", data = 3 },
 		},
 		default = 1,
 	},
+    --[[
+	{
+		name = "AntlionPeriod",
+		label = "Antlion spawn period",
+		hover = "Set spawn period for Antlion.\n개미사자의 소환주기를 설정합니다.",
+		options = period_option,
+		default = 1,
+	},
+	{
+		name = "AntlionIgnore",
+		label = "Ignore sandstorms on spawn Antlion",
+		hover = "Spawn Antlion regardless sandstorm is activated?\n개미사자의 소환이 모래폭풍을 무시합니까?",
+		options = {
+			{ description = "Yes(무시함)", data = true },
+			{ description = "No(무시하지 않음)", data = false },
+		},
+		default = false,
+	},
+    ]]--
 }

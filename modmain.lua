@@ -1,7 +1,7 @@
 local oasisSeason = GetModConfigData("OasisSeason")
 local FreezeLake = GetModConfigData("FreezeLake")
 local FreezeLakeM = GetModConfigData("FreezeLakeMos")
-local SandStorm = GetModConfigData("Sandstorm")
+local SandStorm = GetModConfigData("SandStorm")
 
 local Prefabs = GLOBAL.Prefabs
 local UpvalueHacker = GLOBAL.require "tools/UpvalueHacker"
@@ -57,9 +57,14 @@ local function OnSeasonChanged(inst, data, skipanim)
 		local SpawnOasisBugs = UpvalueHacker.GetUpvalue(Prefabs.oasislake.fn, "OnInit", "OnSandstormChanged", "SpawnOasisBugs")
 		local SpawnSucculents = UpvalueHacker.GetUpvalue(Prefabs.oasislake.fn, "OnInit", "OnSandstormChanged", "SpawnSucculents")
         FillLake(inst, skipanim)
-		SpawnOasisBugs(inst)
-        SpawnSucculents(inst)
+        
+        if inst.regrowth then
+            inst.regrowth = false
+            SpawnOasisBugs(inst)
+            SpawnSucculents(inst)
+        end
     elseif not active and inst.isfilled then
+        inst.regrowth = true
 		EmptyLake(inst, skipanim)
     end
 end
@@ -67,8 +72,13 @@ end
 local function OnInitOasis(inst)
     inst.task = nil
 	inst:RemoveAllEventCallbacks()
-	inst:WatchWorldState("season", function(src, data) OnSeasonChanged(inst, data) end, GLOBAL.TheWorld)
-	OnSeasonChanged(inst, GLOBAL.TheWorld.state.season, true) 
+    inst:StopAllWatchingWorldStates()
+    if oasisSeason ~= 3 then
+        inst:WatchWorldState("season", function(src, data) OnSeasonChanged(inst, data) end, GLOBAL.TheWorld)
+        OnSeasonChanged(inst, GLOBAL.TheWorld.state.season, true) 
+    else   
+        FillLake(inst, true)
+    end
 end
 
 local function OnInitPonds(inst)
@@ -130,54 +140,52 @@ AddPrefabPostInit("pond_mos", ChangeLakeMos)
 
 AddPrefabPostInit("forest", function(inst)
 	if not GLOBAL.TheWorld.ismastersim or SandStorm == 1 then
-		return
+		return 
 	end
+    
+    -- Since it's not able to get some type of values' reference, I had no option except for replacing every case where _sandstormactive is used to a new class variable's.
+    local Sandstorms = inst.components.sandstorms
+    local _sandstormactive = false
 
-	-- Since it's not able to get values' reference, I had no option except for replacing every case where _sandstormactive is used to a new class variable's.
-	local Sandstorms = inst.components.sandstorms
-	Sandstorms._active = false -- This is now act like _sandstormactive.
+    for _, events in pairs({inst.event_listening.seasontick[inst], inst.event_listening.weathertick[inst]}) do
+        for k, v in pairs(events) do
+            local reference = UpvalueHacker.GetUpvalue(v, "ToggleSandstorm")
 
-	local _sandstormactive = Sandstorms._active
+            if reference ~= nil then 
+                local ShouldActivateSandstorm = UpvalueHacker.GetUpvalue(reference, "ShouldActivateSandstorm")
+                local ToggleSandStorm = function()
+                    if _sandstormactive ~= (SandStorm ~= 0 and ShouldActivateSandstorm() or (SandStorm == 2 and not inst.components.worldstate.data.iswinter) or SandStorm == 3) then
+                        _sandstormactive = not _sandstormactive
+                        inst:PushEvent("ms_sandstormchanged", _sandstormactive)
+                    end
+                end
 
-	for _, events in pairs({inst.event_listening.seasontick[inst], inst.event_listening.weathertick[inst]}) do
-		for k, v in pairs(events) do
-			local reference = UpvalueHacker.GetUpvalue(v, "ToggleSandstorm")
+                UpvalueHacker.SetUpvalue(v, ToggleSandStorm, "ToggleSandstorm")
+                break
+            end
+        end
+    end
 
-			if reference ~= nil then 
-				local ShouldActivateSandstorm = UpvalueHacker.GetUpvalue(reference, "ShouldActivateSandstorm")
-				local ToggleSandStorm = function()
-					if _sandstormactive ~= (SandStorm ~= 0 and ShouldActivateSandstorm() and (SandStorm == 2 and not inst.components.worldstate.data.iswinter) or SandStorm == 3) then
-						_sandstormactive = not _sandstormactive
-						inst:PushEvent("ms_sandstormchanged", _sandstormactive)
-					end
-				end
+    function Sandstorms:IsInSandstorm(ent)
+        return _sandstormactive
+            and ent.components.areaaware ~= nil
+            and ent.components.areaaware:CurrentlyInTag("sandstorm")
+    end
 
-				UpvalueHacker.SetUpvalue(v, ToggleSandStorm, "ToggleSandstorm")
-				break
-			end
-		end
-	end
+    function Sandstorms:GetSandstormLevel(ent)
+        if _sandstormactive and
+            ent.components.areaaware ~= nil and
+            ent.components.areaaware:CurrentlyInTag("sandstorm") then
+            local oasislevel = Sandstorms:CalcOasisLevel(ent)
+            return oasislevel < 1
+                and math.clamp(Sandstorms:CalcSandstormLevel(ent) - oasislevel, 0, 1)
+                or 0
+        end
+        --TODO: entities without areaaware need to know if they're inside the sandstorm
+        return 0
+    end
 
-	function Sandstorms:IsInSandstorm(ent)
-		return _sandstormactive
-			and ent.components.areaaware ~= nil
-			and ent.components.areaaware:CurrentlyInTag("sandstorm")
-	end
-
-	function Sandstorms:GetSandstormLevel(ent)
-		if _sandstormactive and
-			ent.components.areaaware ~= nil and
-			ent.components.areaaware:CurrentlyInTag("sandstorm") then
-			local oasislevel = Sandstorms:CalcOasisLevel(ent)
-			return oasislevel < 1
-				and math.clamp(Sandstorms:CalcSandstormLevel(ent) - oasislevel, 0, 1)
-				or 0
-		end
-		--TODO: entities without areaaware need to know if they're inside the sandstorm
-		return 0
-	end
-
-	function Sandstorms:IsSandstormActive()
-		return _sandstormactive
-	end
+    function Sandstorms:IsSandstormActive()
+        return _sandstormactive
+    end
 end)
